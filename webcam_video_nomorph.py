@@ -167,8 +167,8 @@ class FrameGrabber(Thread):
     def __init__(self, source_id):
         # set up video
         self.cap = cv2.VideoCapture(source_id)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1024)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         self.cap.set(cv2.CAP_PROP_FPS, 15)
         ret, self.cur_frame = self.cap.read()
         self.stop = Event()
