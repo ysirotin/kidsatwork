@@ -2,4 +2,4 @@ pygame
 dlib
 numpy
 opencv-python
-
+face-recognition
