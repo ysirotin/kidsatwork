@@ -13,14 +13,12 @@ print('Importing face_recognition')
 import face_recognition
 
 DEVICE = '/dev/video0'
-SIZE = (640, 480)
+SIZE = (1280, 720)
 
-DISPLAY_SCALE = 2
+DISPLAY_SCALE = 1
 DISPLAY_SIZE = (SIZE[0]*DISPLAY_SCALE, SIZE[1]*DISPLAY_SCALE)
 
 SCALE = 0.25
-
-#N_WORKERS = cpu_count()-1
 
 # load images
 moustache = cv2.resize(cv2.imread('moustache.png', cv2.IMREAD_UNCHANGED),(220,74))
@@ -41,13 +39,13 @@ def imrotate(img,angle):
 def overlay(img1,img2,x_o,y_o):
     h = img2.shape[0]
     w = img2.shape[1]
-    
+
     y1, y2 = y_o - int(h/2), y_o + (h-int(h/2))
     x1, x2 = x_o - int(w/2), x_o + (w-int(w/2))
 
     alpha2 = img2[:, :, 3] / 255.0
     alpha1 = 1.0 - alpha2
-    
+
     for c in range(0, 3):
         img1[y1:y2, x1:x2, c] = (alpha2 * img2[:, :, c] +
                                   alpha1 * img1[y1:y2, x1:x2, c])
@@ -69,13 +67,13 @@ def place_moustache(frame, points, moustache):
 
     dx = points['chin'][0][0] - points['chin'][16][0]
     dy = points['chin'][0][1] - points['chin'][16][1]
-    
+
     mw0 = moustache.shape[1]
     mw = (dx**2 + dy**2)**0.5
 
     cx = int((points['nose_tip'][2][0] + points['top_lip'][3][0])/2)
-    cy = int((points['nose_tip'][2][1] + points['top_lip'][3][1])/2)    
-   
+    cy = int((points['nose_tip'][2][1] + points['top_lip'][3][1])/2)
+
     msz = cv2.resize(moustache, (0,0), fx=mw/mw0, fy=mw/mw0)
     mrot = imrotate(msz, rot)
     overlay(frame,mrot,cx,cy)
@@ -91,13 +89,13 @@ def place_groucho(frame, points, groucho):
 
     dx = points['right_eye'][1][0] - points['left_eye'][4][0]
     dy = points['right_eye'][1][1] - points['left_eye'][4][1]
-    
+
     mh0 = groucho.shape[0]
     mh = 3 * (dx**2 + dy**2)**0.5
 
     cx = int((points['nose_bridge'][0][0] + points['nose_bridge'][3][0]) / 2)
     cy = int((points['nose_bridge'][0][1] + points['nose_bridge'][3][1]) / 2)
-    
+
     gsz = cv2.resize(groucho, (0,0), fx=mh/mh0, fy=mh/mh0)
     grot = imrotate(gsz, rot)
     overlay(frame,grot,cx,cy)
@@ -106,6 +104,27 @@ def draw_points(frame, points, scale=1):
     for feature in points.keys():
         for pt in points[feature]:
             cv2.circle(frame,(int(pt[0] / scale), int(pt[1] / scale)), 2, color=[0,255,0], thickness=-1)
+
+def draw_outline(frame, points):
+    # Extract the facial landmark points
+    nose_points = np.array(points['nose_bridge'] + points['nose_tip'], dtype=np.int32)
+    top_lip_points = np.array(points['top_lip'], dtype=np.int32)
+    bottom_lip_points = np.array(points['bottom_lip'], dtype=np.int32)
+    left_eye_points = np.array(points['left_eye'], dtype=np.int32)
+    right_eye_points = np.array(points['right_eye'], dtype=np.int32)
+    chin_points = np.array(points['chin'], dtype=np.int32)
+    left_eyebrow_points = np.array(points['left_eyebrow'], dtype=np.int32)
+    right_eyebrow_points = np.array(points['right_eyebrow'], dtype=np.int32)
+
+    # Draw the outlines
+    cv2.polylines(frame, [nose_points], isClosed=False, color=(0, 255, 0), thickness=2)       # Nose in green
+    cv2.polylines(frame, [top_lip_points], isClosed=False, color=(0, 0, 255), thickness=2)      # Mouth in red
+    cv2.polylines(frame, [bottom_lip_points], isClosed=False, color=(0, 0, 255), thickness=2)      # Mouth in red
+    cv2.polylines(frame, [left_eye_points], isClosed=True, color=(255, 0, 0), thickness=2)   # Left eye in blue
+    cv2.polylines(frame, [right_eye_points], isClosed=True, color=(255, 0, 0), thickness=2)  # Right eye in blue
+    cv2.polylines(frame, [chin_points], isClosed=False, color=(0, 255, 255), thickness=2)    # Chin in cyan
+    cv2.polylines(frame, [left_eyebrow_points], isClosed=False, color=(0, 255, 255), thickness=2)   # Left eyebrow in cyan
+    cv2.polylines(frame, [right_eyebrow_points], isClosed=False, color=(0, 255, 255), thickness=2)  # Right eyebrow in cyan
 
 def draw_text(frame, pt, text):
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -160,13 +179,11 @@ def identify_template(template, threshold=0.4):
 # function to enroll faces in frame
 def enroll_faces(frame, rects):
 
-    # TO DO: save face image clip to display after identification (standard size)
-    
     frame_temp = frame.copy()
     for rect in scaled_rects:
         draw_face_rect(frame_temp, rect, 'enrolling')
     draw_frame(frame_temp)
-    
+
     templates = face_recognition.face_encodings(frame, known_face_locations=scaled_rects)
     for template, rect in zip(templates, rects):
         ind = identify_template(template)
@@ -186,8 +203,6 @@ def enroll_faces(frame, rects):
 # function to identify faces in frame
 def identify_faces(frame, rects):
 
-    # TO DO: display gallery image (in lower corner)
-    
     names = []
     inds = []
     templates = face_recognition.face_encodings(frame, known_face_locations=rects)
@@ -208,36 +223,63 @@ def get_frame():
 def draw_frame(frame):
     # draw frame onto the screen and then onto the display
     pygame.surfarray.blit_array(screen, bgr_to_rgb(cv2.transpose(frame)))
-    pygame.transform.scale(screen, DISPLAY_SIZE, display)
+    pygame.transform.scale(screen, pygame.display.get_surface().get_size(), display)
     pygame.display.flip()
 
 def process_frame(frame):
     gray_full = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     gray = cv2.resize(gray_full, (0,0), fx=SCALE, fy=SCALE)
-        
+
     rects = face_recognition.face_locations(gray)
     points = face_recognition.face_landmarks(gray,face_locations=rects)
     scaled_rects = [tuple([int(ind / SCALE) for ind in rect]) for rect in rects]
     scaled_points = [{key: [tuple([int(value / SCALE) for value in point]) for point in group[key]] for key in group} for group in points]
     return scaled_rects, scaled_points
 
+def select_camera_device():
+    camera_list = pygame.camera.list_cameras()
+    if not camera_list:
+        print('No cameras found.')
+        return None
+
+    if DEVICE not in camera_list:
+        print('Default camera {DEVICE} not found.')
+        print('Available cameras:')
+        for i, device in enumerate(camera_list):
+            print(f'{i + 1}. {device}')
+
+    choice = input('Select camera number (q for quit): ')
+    if choice.lower() == 'q':
+        return None
+
+    try:
+        if 0 <= int(choice) - 1 < len(camera_list):
+            return camera_list[int(choice) - 1]
+    except ValueError:
+        return None
 
 if __name__ == '__main__':
 
     print('Initializing pygame...')
     pygame.init()
-    
-    display = pygame.display.set_mode(DISPLAY_SIZE, pygame.FULLSCREEN)
+
+    pygame.camera.init()
+    device = select_camera_device()
+    if device is None:
+        pygame.quit()
+        print('Could not select a camera.')
+        exit()
+
+    camera = pygame.camera.Camera(device, SIZE, 'MJPG')
+    camera.start()
+
+    display = pygame.display.set_mode(DISPLAY_SIZE, pygame.RESIZABLE)
     screen = pygame.surface.Surface(SIZE, 0)
 
     templates_ref = []
     frames_ref = []
     person_ref = []
 
-    pygame.camera.init()
-    camera = pygame.camera.Camera(DEVICE, SIZE, 'MJPG')
-    camera.start()
-    
     POINTS = False
     GROUCHO = False
     MOUSTACHE = False
@@ -246,14 +288,15 @@ if __name__ == '__main__':
     while(CAPTURE):
 
         camera.get_image(screen)
-        frame = get_frame()                
+        frame = get_frame()
 
         scaled_rects, scaled_points = process_frame(frame)
-        
+
         for pts in scaled_points:
             try:
                 if POINTS:
-                    draw_points(frame, pts)
+                    #draw_points(frame, pts)
+                    draw_outline(frame, pts)
                 elif MOUSTACHE:
                     place_moustache(frame, pts, moustache)
                 elif GROUCHO:
@@ -261,9 +304,9 @@ if __name__ == '__main__':
             except Exception as e:
                 print(e)
                 pass
-                
+
         draw_frame(frame)
-        
+
         # respond to keyboard
         for event in pygame.event.get():
             if (event.type == QUIT) or (event.type == KEYDOWN and event.key == K_q):
@@ -283,12 +326,12 @@ if __name__ == '__main__':
                 POINTS = False
                 GROUCHO = False
             elif event.type == KEYDOWN and event.key == K_e:
-                enroll_faces(frame, scaled_rects)                
+                enroll_faces(frame, scaled_rects)
             elif event.type == KEYDOWN and event.key == K_i:
                 frame_temp = frame.copy()
                 for rect in scaled_rects:
                     draw_face_rect(frame_temp, rect, 'identifying')
-                draw_frame(frame_temp)   
+                draw_frame(frame_temp)
                 names, inds = identify_faces(frame, scaled_rects)
                 for rect, name, ind in zip(scaled_rects, names, inds):
                     draw_face_rect(frame, rect, name)
@@ -304,4 +347,4 @@ if __name__ == '__main__':
 
     camera.stop()
     pygame.quit()
-    
+

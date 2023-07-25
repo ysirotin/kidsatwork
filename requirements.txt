@@ -1,0 +1,5 @@
+pygame
+dlib
+numpy
+opencv-python
+
